@@ -80,10 +80,10 @@ const COMMODITY_DATA = {
 
     // Kim loại (COMEX / NYMEX / SGX)
     "SIE": {
-        name: "Bạc tiêu chuẩn", exchange: "COMEX", group: "metal", basePrice: 72.250, tickSize: 0.005, digits: 3,
+        name: "Bạc tiêu chuẩn", exchange: "COMEX", group: "metal", basePrice: 71.300, tickSize: 0.005, digits: 3,
         contracts: [
             { code: "SIEZ26", month: "T12/26", name: "Tháng 12/2026", spread: 0.0 },
-            { code: "SIEH27", month: "T3/27", name: "Tháng 03/2027", spread: -0.040 },
+            { code: "SIEH27", month: "T3/27", name: "Tháng 03/2027", spread: 0.050 },
             { code: "SIEK27", month: "T5/27", name: "Tháng 05/2027", spread: 0.120 },
         ]
     },
@@ -440,12 +440,11 @@ async function loadInitialHistory() {
             }
 
             elStatLast.textContent = currentCandle.close.toFixed(spec.digits);
-            elStatChange.textContent = "+0.52%";
-            elStatHigh.textContent = (spec.price * 1.008).toFixed(spec.digits);
-            elStatLow.textContent = (spec.price * 0.992).toFixed(spec.digits);
-            elStatVol.textContent = (24580).toLocaleString();
-
-            populateInitialTape(spec);
+            elStatChange.textContent = "0.00%";
+            elStatHigh.textContent = Math.max(...bars.map(b => b.high)).toFixed(spec.digits);
+            elStatLow.textContent = Math.min(...bars.map(b => b.low)).toFixed(spec.digits);
+            const totalVol = bars.reduce((acc, b) => acc + (b.volume || 0), 0);
+            elStatVol.textContent = totalVol.toLocaleString();
         }
     } catch (e) {
         console.error("Error loading server history:", e);
@@ -458,15 +457,6 @@ function roundToTick(price, tickSize, digits) {
 
 function populateInitialTape(spec) {
     elTape.innerHTML = "";
-    const baseP = spec.price;
-    const now = Date.now();
-    for (let i = 0; i < 15; i++) {
-        const ts = new Date(now - i * 1200).toTimeString().substr(0, 8);
-        const price = roundToTick(baseP + (Math.random() - 0.5) * (spec.tickSize * 4), spec.tickSize, spec.digits);
-        const vol = Math.floor(Math.random() * 12) + 1;
-        const side = Math.random() > 0.5 ? "BUY" : "SELL";
-        appendTapeRow(ts, price, vol, side, spec.digits);
-    }
 }
 
 // Render Watchlist
