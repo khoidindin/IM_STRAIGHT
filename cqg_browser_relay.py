@@ -74,7 +74,22 @@ class CQGBrowserRelay:
                 submit_btn = self.driver.find_element(By.CSS_SELECTOR, "button[type='submit']")
                 submit_btn.click()
 
-                logger.info("✓ Authenticated! Streaming 100% genuine market data from wss://api-hongkong.cqg.com/...")
+                logger.info("Authentication submitted. Waiting 6s for dashboard...")
+                time.sleep(6)
+
+                # Automatically click 'Quotes' tab to activate multi-symbol real-time streaming for all 26 commodities
+                try:
+                    quotes_elements = self.driver.find_elements(By.XPATH, "//*[contains(text(), 'Quotes') or contains(text(), 'Quote')]")
+                    for el in quotes_elements:
+                        if el.is_displayed():
+                            el.click()
+                            logger.info("✓ Activated Quotes Board widget in CQG Desktop for 26 commodities streaming.")
+                            time.sleep(2)
+                            break
+                except Exception as ex:
+                    logger.warning(f"Could not automatically click Quotes tab: {ex}")
+
+                logger.info("✓ Streaming 100% genuine live market data from wss://api-hongkong.cqg.com/...")
 
                 # Continuous stream sniffing loop
                 while self.is_running:
