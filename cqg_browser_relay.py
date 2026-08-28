@@ -63,6 +63,20 @@ DEFAULT_DIGITS = {
 }
 
 
+def _safe_vol(obj, field_name="scaled_volume", default=1) -> int:
+    try:
+        if hasattr(obj, "volume"):
+            v = getattr(obj, "volume")
+            if hasattr(v, "significand"):
+                return int(v.significand) if v.significand > 0 else default
+            if isinstance(v, (int, float)) and v > 0:
+                return int(v)
+        val = getattr(obj, field_name, default)
+        return int(val) if val and val > 0 else default
+    except Exception:
+        return default
+
+
 class CQGBrowserRelay:
     def __init__(self, on_market_data_callback: Optional[Callable[[Dict[str, Any]], None]] = None):
         self.on_market_data_callback = on_market_data_callback
@@ -234,7 +248,6 @@ class CQGBrowserRelay:
                 if not time_bars:
                     continue
 
-                # Determine symbol from contract map or default
                 sym = "SIEZ26"
                 scale, digits = self._get_scale_and_digits(0, sym)
 
@@ -245,14 +258,14 @@ class CQGBrowserRelay:
                     h = round(tb.scaled_high_price * scale, digits)
                     l = round(tb.scaled_low_price * scale, digits)
                     c = round(tb.scaled_close_price * scale, digits)
-                    vol = tb.volume.significand if tb.HasField("volume") else tb.scaled_volume
+                    vol = _safe_vol(tb, "scaled_volume", 1)
                     bars.append({
                         "time": t_sec,
                         "open": o,
                         "high": h,
                         "low": l,
                         "close": c,
-                        "volume": vol if vol > 0 else 1
+                        "volume": vol
                     })
 
                 event = {
@@ -291,7 +304,7 @@ class CQGBrowserRelay:
                             "symbol": sym,
                             "contract_id": contract_id,
                             "price": price,
-                            "volume": q.volume.significand if q.HasField("volume") else (q.scaled_volume if q.scaled_volume > 0 else 1),
+                            "volume": _safe_vol(q, "scaled_volume", 1),
                             "side": "BUY" if q.price_indicator == 1 else "SELL",
                             "source": "CQG_REAL_GLOBEX_LIVE"
                         }
@@ -321,7 +334,7 @@ class CQGBrowserRelay:
                         "close": round(mv.scaled_close_price * scale, digits) if mv.scaled_close_price else None,
                         "last_price": round(mv.scaled_last_price_no_settlement * scale, digits) if mv.scaled_last_price_no_settlement else None,
                         "settlement": round(mv.scaled_settlement * scale, digits) if mv.scaled_settlement else None,
-                        "total_volume": mv.total_volume.significand if mv.HasField("total_volume") else mv.scaled_total_volume,
+                        "total_volume": _safe_vol(mv, "scaled_total_volume", 0),
                         "source": "CQG_REAL_GLOBEX_LIVE"
                     }
                     if self.on_market_data_callback:
@@ -333,8 +346,8 @@ class CQGBrowserRelay:
                 sym = self.contract_symbol_map.get(ob.contract_id, "SIEZ26")
                 scale, digits = self._get_scale_and_digits(ob.contract_id, sym)
 
-                bids = [{"price": round(b.scaled_price * scale, digits), "size": b.volume.significand if b.HasField("volume") else b.scaled_volume} for b in ob.bids if b.scaled_price > 0]
-                asks = [{"price": round(a.scaled_price * scale, digits), "size": a.volume.significand if a.HasField("volume") else a.scaled_volume} for a in ob.asks if a.scaled_price > 0]
+                bids = [{"price": round(b.scaled_price * scale, digits), "size": _safe_vol(b, "scaled_volume", 10)} for b in ob.bids if b.scaled_price > 0]
+                asks = [{"price": round(a.scaled_price * scale, digits), "size": _safe_vol(a, "scaled_volume", 10)} for a in ob.asks if a.scaled_price > 0]
 
                 # Sort bids descending, asks ascending
                 bids.sort(key=lambda x: x["price"], reverse=True)
