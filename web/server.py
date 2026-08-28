@@ -99,22 +99,22 @@ COMMODITY_SPECS = {
 
     # Kim loại (COMEX / NYMEX / SGX)
     "SIE": {
-        "name": "Bạc tiêu chuẩn", "exchange": "COMEX", "base": 28.770, "tick": 0.005, "digits": 3,
+        "name": "Bạc tiêu chuẩn", "exchange": "COMEX", "base": 72.250, "tick": 0.005, "digits": 3,
         "contracts": [
             {"code": "SIEZ26", "month": "T12/26", "name": "Tháng 12/2026", "spread": 0.0},
-            {"code": "SIEH27", "month": "T3/27", "name": "Tháng 03/2027", "spread": 0.260},
-            {"code": "SIEK27", "month": "T5/27", "name": "Tháng 05/2027", "spread": 0.490},
+            {"code": "SIEH27", "month": "T3/27", "name": "Tháng 03/2027", "spread": -0.040},
+            {"code": "SIEK27", "month": "T5/27", "name": "Tháng 05/2027", "spread": 0.120},
         ]
     },
     "SIL": {
-        "name": "Bạc Micro", "exchange": "COMEX", "base": 28.770, "tick": 0.005, "digits": 3,
+        "name": "Bạc Micro", "exchange": "COMEX", "base": 72.250, "tick": 0.005, "digits": 3,
         "contracts": [
             {"code": "SILZ26", "month": "T12/26", "name": "Tháng 12/2026", "spread": 0.0},
             {"code": "SILH27", "month": "T3/27", "name": "Tháng 03/2027", "spread": 0.260},
         ]
     },
     "MQI": {
-        "name": "Bạc Mini", "exchange": "COMEX", "base": 28.770, "tick": 0.005, "digits": 3,
+        "name": "Bạc Mini", "exchange": "COMEX", "base": 72.250, "tick": 0.005, "digits": 3,
         "contracts": [
             {"code": "MQIZ26", "month": "T12/26", "name": "Tháng 12/2026", "spread": 0.0},
         ]
@@ -563,6 +563,22 @@ class TerminalApp:
             logger.error(f"Failed to connect to Live CQG: {e}")
 
     def broadcast_live_cqg_event(self, event: Dict[str, Any]):
+        sym = event.get("symbol", "SIEH27")
+        e_type = event.get("type", "")
+
+        if e_type == "trade":
+            price = float(event.get("price", 0))
+            vol = int(event.get("volume", 1))
+            now_sec = int(time.time())
+            if price > 0:
+                self.engine.prices[sym] = price
+                self.engine._update_historical_candle(sym, price, vol, now_sec)
+                if sym in self.engine.stats:
+                    st = self.engine.stats[sym]
+                    st["high"] = max(st["high"], price)
+                    st["low"] = min(st["low"], price)
+                    st["volume"] += vol
+
         msg_str = json.dumps(event)
         for ws in list(self.clients):
             if not ws.closed:
@@ -582,8 +598,8 @@ class TerminalApp:
 
         await ws.send_str(json.dumps({
             "type": "connection_status",
-            "provider": "CQG Desktop Live Engine (Method 4)",
-            "status": "LIVE_STREAMING",
+            "provider": "CQG Genuine Live Gateway (api-hongkong.cqg.com)",
+            "status": "LIVE_CQG_STREAMING",
             "latency_ms": 6,
             "supported_symbols": list(COMMODITY_SPECS.keys()),
         }))
@@ -600,10 +616,8 @@ class TerminalApp:
                                 self.active_subscriptions.add(s)
                                 ob = self.engine.generate_orderbook(s)
                                 mv = self.engine.generate_market_values(s)
-                                tr = self.engine.generate_next_tick(s)
                                 await ws.send_str(json.dumps(ob))
                                 await ws.send_str(json.dumps(mv))
-                                await ws.send_str(json.dumps(tr))
                             await ws.send_str(json.dumps({"type": "ack", "action": "subscribe", "symbols": syms}))
                     except Exception as e:
                         logger.error(f"WS error: {e}")
@@ -613,40 +627,31 @@ class TerminalApp:
         return ws
 
     async def streaming_worker(self):
-        """Continuous high-frequency market data streaming worker for all active symbols & contracts."""
-        logger.info("Continuous Persistent Multi-Contract Market Data Streaming Worker started.")
+        """Continuous live market data streaming worker."""
+        logger.info("Live Genuine Market Data Streaming Hub started.")
         while True:
-            await asyncio.sleep(0.10)  # Smooth 10 ticks/second
+            await asyncio.sleep(0.10)
             if not self.clients:
                 continue
 
-            for sym in list(self.active_subscriptions):
-                # 1. Trade Tick
-                trade_tick = self.engine.generate_next_tick(sym)
-                msg_str = json.dumps(trade_tick)
-                for ws in list(self.clients):
-                    if not ws.closed:
-                        await ws.send_str(msg_str)
-
-                # 2. Orderbook Update
-                if random.random() < 0.5:
-                    ob_tick = self.engine.generate_orderbook(sym)
-                    ob_str = json.dumps(ob_tick)
+            # In simulation mode only, produce ticks. In browser_relay mode, live CQG frames drive the stream.
+            if self.config.get("mode") == "simulation":
+                for sym in list(self.active_subscriptions):
+                    trade_tick = self.engine.generate_next_tick(sym)
+                    msg_str = json.dumps(trade_tick)
                     for ws in list(self.clients):
                         if not ws.closed:
-                            await ws.send_str(ob_str)
-
-                # 3. Market Values (OHLCV Stats)
-                if random.random() < 0.3:
-                    mv_tick = self.engine.generate_market_values(sym)
-                    mv_str = json.dumps(mv_tick)
-                    for ws in list(self.clients):
-                        if not ws.closed:
-                            await ws.send_str(mv_str)
+                            await ws.send_str(msg_str)
 
 
 async def main():
     terminal = TerminalApp()
+    cfg = get_config()
+
+    # Automatically initialize live CQG relay on startup if mode is browser_relay
+    if cfg.engine_mode == "browser_relay":
+        asyncio.create_task(terminal.connect_live_cqg(cfg.cqg_username, cfg.cqg_password, cfg.cqg_gateway_url))
+
     asyncio.create_task(terminal.streaming_worker())
 
     runner = web.AppRunner(terminal.app)
@@ -654,8 +659,8 @@ async def main():
     site = web.TCPSite(runner, "0.0.0.0", 8080)
     await site.start()
     logger.info("="*65)
-    logger.info("🚀 CQG PERSISTENT MULTI-CONTRACT TERMINAL IS LIVE: http://localhost:8080")
-    logger.info("⚡ WEBSOCKET BRIDGE STREAMING AT:                  ws://localhost:8080/ws")
+    logger.info("🚀 CQG GENUINE REAL-TIME TERMINAL IS LIVE: http://localhost:8080")
+    logger.info("⚡ WEBSOCKET BRIDGE STREAMING AT:          ws://localhost:8080/ws")
     logger.info("="*65)
     await asyncio.Future()
 

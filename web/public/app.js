@@ -80,22 +80,22 @@ const COMMODITY_DATA = {
 
     // Kim loại (COMEX / NYMEX / SGX)
     "SIE": {
-        name: "Bạc tiêu chuẩn", exchange: "COMEX", group: "metal", basePrice: 28.770, tickSize: 0.005, digits: 3,
+        name: "Bạc tiêu chuẩn", exchange: "COMEX", group: "metal", basePrice: 72.250, tickSize: 0.005, digits: 3,
         contracts: [
             { code: "SIEZ26", month: "T12/26", name: "Tháng 12/2026", spread: 0.0 },
-            { code: "SIEH27", month: "T3/27", name: "Tháng 03/2027", spread: 0.260 },
-            { code: "SIEK27", month: "T5/27", name: "Tháng 05/2027", spread: 0.490 },
+            { code: "SIEH27", month: "T3/27", name: "Tháng 03/2027", spread: -0.040 },
+            { code: "SIEK27", month: "T5/27", name: "Tháng 05/2027", spread: 0.120 },
         ]
     },
     "SIL": {
-        name: "Bạc Micro", exchange: "COMEX", group: "metal", basePrice: 28.770, tickSize: 0.005, digits: 3,
+        name: "Bạc Micro", exchange: "COMEX", group: "metal", basePrice: 72.250, tickSize: 0.005, digits: 3,
         contracts: [
             { code: "SILZ26", month: "T12/26", name: "Tháng 12/2026", spread: 0.0 },
             { code: "SILH27", month: "T3/27", name: "Tháng 03/2027", spread: 0.260 },
         ]
     },
     "MQI": {
-        name: "Bạc Mini", exchange: "COMEX", group: "metal", basePrice: 28.770, tickSize: 0.005, digits: 3,
+        name: "Bạc Mini", exchange: "COMEX", group: "metal", basePrice: 72.250, tickSize: 0.005, digits: 3,
         contracts: [
             { code: "MQIZ26", month: "T12/26", name: "Tháng 12/2026", spread: 0.0 },
         ]
@@ -312,6 +312,13 @@ function initChart() {
             borderColor: "rgba(249, 115, 22, 0.18)",
             scaleMargins: { top: 0.08, bottom: 0.20 },
             autoScale: true,
+        },
+        localization: {
+            locale: "vi-VN",
+            timeFormatter: (timestamp) => {
+                const date = new Date(timestamp * 1000);
+                return date.toLocaleTimeString("vi-VN", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Asia/Ho_Chi_Minh" });
+            },
         },
         timeScale: {
             borderColor: "rgba(249, 115, 22, 0.18)",
