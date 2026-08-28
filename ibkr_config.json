@@ -1,0 +1,15 @@
+{
+  "bridge_host": "127.0.0.1",
+  "bridge_port": 8766,
+  "ibkr": {
+    "host": "127.0.0.1",
+    "port": 7497,
+    "client_id": 1,
+    "initial_symbols": [
+      "ZME",
+      "SIE",
+      "LRC",
+      "FEF"
+    ]
+  }
+}
